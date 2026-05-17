@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NOTE管理 - 雲端即時同步版</title>
+  <title>NOTE管理 - 多人獨立分流版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Source+Han+Serif+TW:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -31,9 +31,19 @@
 
 <div class="mobile-container pb-24">
 
+  <!-- 頂部導航列 -->
   <header class="pt-10 pb-2 px-5 sticky top-0 bg-[#FFF8F0]/95 backdrop-blur-md z-10 border-b border-[#D7CCC8]/30">
-    <div class="flex justify-between items-end mb-6">
-      <h1 class="text-3xl font-bold tracking-wider text-[#5D4037]">NOTE管理</h1>
+    <div class="flex justify-between items-end mb-4">
+      <div>
+        <h1 class="text-3xl font-bold tracking-wider text-[#5D4037]">NOTE管理</h1>
+        <!-- 顯示目前的使用者標籤 -->
+        <div class="flex items-center gap-2 mt-1.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+          <span id="userBadge" class="text-xs text-[#8D6E63] font-medium tracking-wide">使用者: 載入中...</span>
+          <button onclick="switchUserPrompt()" class="text-[10px] text-[#5D4037] underline ml-1 opacity-70 hover:opacity-100">切換</button>
+        </div>
+      </div>
+      <!-- 清空回收桶按鈕 -->
       <button id="emptyTrashBtn" onclick="confirmEmptyTrash()" class="hidden text-sm text-[#FF8A80] font-medium px-4 py-1.5 bg-[#FFEBEE]/90 rounded-full hover:bg-red-100 transition-colors">
         清空全部
       </button>
@@ -47,16 +57,20 @@
     </div>
   </header>
 
+  <!-- 雲端連線狀態提示 -->
   <div id="loadingState" class="text-center text-[#8D6E63] mt-24 font-medium tracking-wide">
-    雲端資料庫連線中...
+    雲端安全同步連線中...
   </div>
 
+  <!-- 卡片列表區 -->
   <div id="taskList" class="px-5 mt-5 space-y-5 hidden"></div>
 
+  <!-- 懸浮新增按鈕 -->
   <button id="fabBtn" onclick="openModal()" class="fixed bottom-8 right-6 w-16 h-16 rounded-full flex items-center justify-center hover:scale-105 transition-transform z-40 active:scale-95">
     <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
   </button>
 
+  <!-- 彈出視窗 -->
   <div id="actionModal" class="absolute inset-0 bg-black/50 z-50 flex items-end hidden backdrop-blur-sm transition-opacity">
     <div class="bg-white w-full rounded-t-[32px] p-6 pb-10 shadow-2xl slide-up max-h-[90vh] overflow-y-auto no-scrollbar relative">
       <div class="flex justify-between items-center mb-6">
@@ -101,6 +115,7 @@
     </div>
   </div>
 
+  <!-- 刪除確認視窗 -->
   <div id="confirmModal" class="absolute inset-0 bg-black/60 z-[60] flex items-center justify-center hidden backdrop-blur-sm px-6">
     <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl fade-in text-center border-2 border-red-100">
       <div class="w-16 h-16 bg-[#FFEBEE] text-[#FF8A80] rounded-full flex items-center justify-center mx-auto mb-4">
@@ -116,12 +131,13 @@
 
 </div>
 
+<!-- 引入 Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-  // 【精確修正】完全比對您最新截圖中的 vibe-todo-system 專案配置
+  // 精確綁定 vibe-todo-system 金鑰
   const firebaseConfig = {
     apiKey: "AIzaSyCluvLm7VnGxdOdR71ZAjRvM5_VYOY50YY",
     authDomain: "vibe-todo-system.firebaseapp.com",
@@ -131,12 +147,36 @@
     appId: "1:990958267138:web:9f37b03b3048b2f33b301b"
   };
 
-  // 初始化 Firebase
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const storage = getStorage(app);
 
-  // 全域變數掛載
+  // 【智慧多用戶架構核心】
+  // 優先抓網址參數 ?u=老大，其次抓瀏覽器記憶庫。如果都沒有，就彈窗問名字
+  let urlParams = new URLSearchParams(window.location.search);
+  let currentUser = urlParams.get('u') || localStorage.getItem('note_current_user');
+  
+  if (!currentUser) {
+    currentUser = prompt("請輸入您的使用者名稱或代碼（例如：主管、現場）：") || "未知使用者";
+    currentUser = currentUser.trim();
+    localStorage.setItem('note_current_user', currentUser);
+  } else {
+    localStorage.setItem('note_current_user', currentUser);
+  }
+  
+  // 更新畫面的使用者標籤
+  document.getElementById('userBadge').innerText = `使用者: ${currentUser}`;
+
+  // 提供手動切換功能
+  window.switchUserPrompt = function() {
+    let newUser = prompt("請輸入切換後的使用者名稱：", currentUser);
+    if(newUser && newUser.trim() !== "") {
+      localStorage.setItem('note_current_user', newUser.trim());
+      window.location.reload(); // 重新整理立即切換資料串流
+    }
+  }
+
+  // 全域變數
   window.tasks = [];
   window.currentTab = 'todo';
   window.currentActionType = 'todo';
@@ -152,19 +192,24 @@
     hourInput.innerHTML += `<option value="${val}">${val}</option>`;
   }
 
-  // 雲端資料即時監聽器
+  // 雲端資料即時監聽
   const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
   onSnapshot(q, (snapshot) => {
     window.tasks = [];
     snapshot.forEach((doc) => {
-      window.tasks.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      
+      // 【分流判定】：只有當資料的 userId 符合目前使用者，或者這筆資料是以前「還沒有分流前」的歷史資料，才會顯示。
+      if (data.userId === currentUser || !data.userId) {
+        window.tasks.push({ id: doc.id, ...data });
+      }
     });
     document.getElementById('loadingState').classList.add('hidden');
     document.getElementById('taskList').classList.remove('hidden');
     renderTasks();
   });
 
-  // 核心功能掛載
+  // 功能邏輯
   window.switchTab = function(tab) {
     window.currentTab = tab;
     ['todo', 'note', 'favorite', 'trash'].forEach(t => {
@@ -250,7 +295,14 @@
       if (dateVal) deadline = `${dateVal}T${hourVal}:${minuteVal}:00`;
     }
 
-    const payload = { title, images: finalImageUrls, type: window.currentActionType, deadline: deadline, updatedAt: new Date().toISOString() };
+    const payload = { 
+      title, 
+      images: finalImageUrls, 
+      type: window.currentActionType, 
+      deadline: deadline, 
+      userId: currentUser, // 【核心修改】打上目前使用者的蓋章，作為資料分流依據
+      updatedAt: new Date().toISOString() 
+    };
 
     if (window.editingTaskId) {
       await updateDoc(doc(db, "tasks", window.editingTaskId), payload);
@@ -286,21 +338,10 @@
     closeConfirmModal();
   }
 
-  function getTimeStatus(deadline) {
-    if (!deadline) return { state: 'none', color: 'text-[#8D6E63]', border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', label: '無期限' };
-    const target = new Date(deadline);
-    const today = new Date();
-    const diffDays = (new Date(target.getFullYear(), target.getMonth(), target.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24);
-    if (diffDays <= 0) return { state: 'today', color: 'text-[#FF8A80]', border: 'border-red-200', bg: 'bg-[#FFEBEE]/70', label: '今天' };
-    else if (diffDays <= 3) return { state: '3days', color: 'text-[#FFB74D]', border: 'border-amber-200', bg: 'bg-[#FFF8E1]/95', label: '3天內' };
-    else if (diffDays <= 7) return { state: '7days', color: 'text-[#90CAF9]', border: 'border-sky-200', bg: 'bg-[#E3F2FD]/95', label: '1週內' };
-    else return { state: 'normal', color: 'text-[#8D6E63]', border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', label: '一般' };
-  }
-
   function format24H(dateString) {
     if(!dateString) return '';
     const d = new Date(dateString);
-    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0');}`;
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
   function renderTasks() {
@@ -337,7 +378,17 @@
     filteredTasks.forEach(task => {
       let timeStatus = { border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', color: 'text-[#8D6E63]', label: '' };
       let deadlineStr = task.type === 'todo' ? (task.deadline ? format24H(task.deadline) : '不指定時間') : format24H(task.createdAt);
-      if (task.type === 'todo') timeStatus = task.isCompleted ? getTimeStatus(null) : getTimeStatus(task.deadline);
+      if (task.type === 'todo') {
+        const target = new Date(task.deadline);
+        const today = new Date();
+        const diffDays = (new Date(target.getFullYear(), target.getMonth(), target.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24);
+        if (diffDays <= 0) timeStatus = { state: 'today', color: 'text-[#FF8A80]', border: 'border-red-200', bg: 'bg-[#FFEBEE]/70', label: '今天' };
+        else if (diffDays <= 3) timeStatus = { state: '3days', color: 'text-[#FFB74D]', border: 'border-amber-200', bg: 'bg-[#FFF8E1]/95', label: '3天內' };
+        else if (diffDays <= 7) timeStatus = { state: '7days', color: 'text-[#90CAF9]', border: 'border-sky-200', bg: 'bg-[#E3F2FD]/95', label: '1週內' };
+        else timeStatus = { state: 'normal', color: 'text-[#8D6E63]', border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', label: '一般' };
+      }
+      if (task.isCompleted) timeStatus = { border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', color: 'text-[#8D6E63]', label: '' };
+
       const completedStyle = task.isCompleted ? 'opacity-40 grayscale' : '';
       const textStrike = task.isCompleted ? 'line-through text-[#8D6E63]' : 'text-[#5D4037]';
 
@@ -382,8 +433,4 @@
   }
 </script>
 </body>
-</html>"""
-
-with open("index.html", "w", encoding="utf-8") as f:
-    f.write(html_content)
-print("Updated successfully.")}
+</html>
