@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NOTE管理 - 多人獨立分流版</title>
+  <title>NOTE管理 - 獨立密碼登入版</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Source+Han+Serif+TW:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -40,7 +40,7 @@
         <div class="flex items-center gap-2 mt-1.5">
           <span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
           <span id="userBadge" class="text-xs text-[#8D6E63] font-medium tracking-wide">使用者: 載入中...</span>
-          <button onclick="switchUserPrompt()" class="text-[10px] text-[#5D4037] underline ml-1 opacity-70 hover:opacity-100">切換</button>
+          <button onclick="switchUserPrompt()" class="text-[10px] text-[#5D4037] underline ml-1 opacity-70 hover:opacity-100">切換帳號</button>
         </div>
       </div>
       <!-- 清空回收桶按鈕 -->
@@ -137,7 +137,6 @@
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-  // 精確綁定 vibe-todo-system 金鑰
   const firebaseConfig = {
     apiKey: "AIzaSyCluvLm7VnGxdOdR71ZAjRvM5_VYOY50YY",
     authDomain: "vibe-todo-system.firebaseapp.com",
@@ -151,32 +150,70 @@
   const db = getFirestore(app);
   const storage = getStorage(app);
 
-  // 【智慧多用戶架構核心】
-  // 優先抓網址參數 ?u=老大，其次抓瀏覽器記憶庫。如果都沒有，就彈窗問名字
-  let urlParams = new URLSearchParams(window.location.search);
-  let currentUser = urlParams.get('u') || localStorage.getItem('note_current_user');
-  
-  if (!currentUser) {
-    currentUser = prompt("請輸入您的使用者名稱或代碼（例如：主管、現場）：") || "未知使用者";
-    currentUser = currentUser.trim();
-    localStorage.setItem('note_current_user', currentUser);
-  } else {
-    localStorage.setItem('note_current_user', currentUser);
-  }
-  
-  // 更新畫面的使用者標籤
-  document.getElementById('userBadge').innerText = `使用者: ${currentUser}`;
+  // 【自定義使用者及四位數 PIN 碼配置】
+  const pinMapping = {
+    "信隆": "1111",
+    "品誼": "0825"
+  };
 
-  // 提供手動切換功能
-  window.switchUserPrompt = function() {
-    let newUser = prompt("請輸入切換後的使用者名稱：", currentUser);
-    if(newUser && newUser.trim() !== "") {
-      localStorage.setItem('note_current_user', newUser.trim());
-      window.location.reload(); // 重新整理立即切換資料串流
+  let urlParams = new URLSearchParams(window.location.search);
+  let paramUser = urlParams.get('u');
+  let storedUser = localStorage.getItem('note_current_user');
+  let isVerified = localStorage.getItem('note_user_verified') === 'true';
+
+  let currentUser = paramUser || storedUser;
+
+  // 1. 強制名字篩選判定（只允許信隆、品誼）
+  while (!currentUser || !pinMapping[currentUser]) {
+    currentUser = prompt("請輸入您的名字 (信隆 或 品誼)：");
+    if (currentUser) currentUser = currentUser.trim();
+    if (!currentUser) currentUser = ""; 
+    if (currentUser && !pinMapping[currentUser]) {
+      alert("姓名輸入不正確，本系統僅限定 信隆 或 品誼 登入。");
     }
   }
 
-  // 全域變數
+  // 2. 如果網址帶入新帳號，且跟本地紀錄不同，強制清除驗證狀態重驗
+  if (paramUser && paramUser !== storedUser) {
+    isVerified = false;
+    localStorage.removeItem('note_user_verified');
+  }
+
+  // 3. 簡易四位數密碼防呆驗證（僅限第一次登入）
+  while (!isVerified) {
+    let pin = prompt(`【第一次登入驗證】\n請輸入【${currentUser}】的 4 位數簡易密碼：`);
+    if (pin === pinMapping[currentUser]) {
+      isVerified = true;
+      localStorage.setItem('note_current_user', currentUser);
+      localStorage.setItem('note_user_verified', 'true');
+      alert("驗證成功，系統已記住此裝置，往後登入免輸入密碼！");
+    } else if (pin === null) {
+      // 點取消防呆，強製重新整理防止跳過
+      window.location.reload();
+      break;
+    } else {
+      alert("密碼錯誤，請重新輸入！");
+    }
+  }
+
+  // 4. 定位裝置儲存
+  localStorage.setItem('note_current_user', currentUser);
+  document.getElementById('userBadge').innerText = `使用者: ${currentUser}`;
+
+  // 【手動切換帳號邏輯修正】
+  window.switchUserPrompt = function() {
+    let newUser = prompt("請輸入您要切換的使用者名稱 (信隆 或 品誼)：");
+    if(newUser) newUser = newUser.trim();
+    if (newUser && pinMapping[newUser]) {
+      localStorage.setItem('note_current_user', newUser);
+      localStorage.removeItem('note_user_verified'); // 拔掉認證狀態，切換新用戶必須重新輸入密碼
+      window.location.href = window.location.origin + window.location.pathname + "?u=" + newUser; 
+    } else if (newUser) {
+      alert("查無此使用者，請輸入正確的名字。");
+    }
+  }
+
+  // 全域變數掛載
   window.tasks = [];
   window.currentTab = 'todo';
   window.currentActionType = 'todo';
@@ -192,14 +229,13 @@
     hourInput.innerHTML += `<option value="${val}">${val}</option>`;
   }
 
-  // 雲端資料即時監聽
+  // 雲端資料即時監聽與分流過濾
   const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
   onSnapshot(q, (snapshot) => {
     window.tasks = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      
-      // 【分流判定】：只有當資料的 userId 符合目前使用者，或者這筆資料是以前「還沒有分流前」的歷史資料，才會顯示。
+      // 分流判定：只看自己的紀錄，歷史無 userId 的資料兩邊共享相容
       if (data.userId === currentUser || !data.userId) {
         window.tasks.push({ id: doc.id, ...data });
       }
@@ -209,7 +245,7 @@
     renderTasks();
   });
 
-  // 功能邏輯
+  // 核心功能邏輯
   window.switchTab = function(tab) {
     window.currentTab = tab;
     ['todo', 'note', 'favorite', 'trash'].forEach(t => {
@@ -300,7 +336,7 @@
       images: finalImageUrls, 
       type: window.currentActionType, 
       deadline: deadline, 
-      userId: currentUser, // 【核心修改】打上目前使用者的蓋章，作為資料分流依據
+      userId: currentUser, // 資料蓋上目前使用者印章
       updatedAt: new Date().toISOString() 
     };
 
