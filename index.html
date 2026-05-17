@@ -31,19 +31,16 @@
 
 <div class="mobile-container pb-24">
 
-  <!-- 頂部導航列 -->
   <header class="pt-10 pb-2 px-5 sticky top-0 bg-[#FFF8F0]/95 backdrop-blur-md z-10 border-b border-[#D7CCC8]/30">
     <div class="flex justify-between items-end mb-4">
       <div>
         <h1 class="text-3xl font-bold tracking-wider text-[#5D4037]">NOTE管理</h1>
-        <!-- 顯示目前的使用者標籤 -->
         <div class="flex items-center gap-2 mt-1.5">
           <span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
           <span id="userBadge" class="text-xs text-[#8D6E63] font-medium tracking-wide">使用者: 載入中...</span>
           <button onclick="switchUserPrompt()" class="text-[10px] text-[#5D4037] underline ml-1 opacity-70 hover:opacity-100">切換帳號</button>
         </div>
       </div>
-      <!-- 清空回收桶按鈕 -->
       <button id="emptyTrashBtn" onclick="confirmEmptyTrash()" class="hidden text-sm text-[#FF8A80] font-medium px-4 py-1.5 bg-[#FFEBEE]/90 rounded-full hover:bg-red-100 transition-colors">
         清空全部
       </button>
@@ -57,20 +54,16 @@
     </div>
   </header>
 
-  <!-- 雲端連線狀態提示 -->
   <div id="loadingState" class="text-center text-[#8D6E63] mt-24 font-medium tracking-wide">
     雲端安全同步連線中...
   </div>
 
-  <!-- 卡片列表區 -->
   <div id="taskList" class="px-5 mt-5 space-y-5 hidden"></div>
 
-  <!-- 懸浮新增按鈕 -->
   <button id="fabBtn" onclick="openModal()" class="fixed bottom-8 right-6 w-16 h-16 rounded-full flex items-center justify-center hover:scale-105 transition-transform z-40 active:scale-95">
     <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
   </button>
 
-  <!-- 彈出視窗 -->
   <div id="actionModal" class="absolute inset-0 bg-black/50 z-50 flex items-end hidden backdrop-blur-sm transition-opacity">
     <div class="bg-white w-full rounded-t-[32px] p-6 pb-10 shadow-2xl slide-up max-h-[90vh] overflow-y-auto no-scrollbar relative">
       <div class="flex justify-between items-center mb-6">
@@ -115,7 +108,6 @@
     </div>
   </div>
 
-  <!-- 刪除確認視窗 -->
   <div id="confirmModal" class="absolute inset-0 bg-black/60 z-[60] flex items-center justify-center hidden backdrop-blur-sm px-6">
     <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl fade-in text-center border-2 border-red-100">
       <div class="w-16 h-16 bg-[#FFEBEE] text-[#FF8A80] rounded-full flex items-center justify-center mx-auto mb-4">
@@ -131,7 +123,6 @@
 
 </div>
 
-<!-- 引入 Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -150,11 +141,7 @@
   const db = getFirestore(app);
   const storage = getStorage(app);
 
-  // 【自定義使用者及四位數 PIN 碼配置】
-  const pinMapping = {
-    "信隆": "1111",
-    "品誼": "0825"
-  };
+  const pinMapping = { "信隆": "1111", "品誼": "0825" };
 
   let urlParams = new URLSearchParams(window.location.search);
   let paramUser = urlParams.get('u');
@@ -163,32 +150,25 @@
 
   let currentUser = paramUser || storedUser;
 
-  // 1. 強制名字篩選判定（只允許信隆、品誼）
   while (!currentUser || !pinMapping[currentUser]) {
     currentUser = prompt("請輸入您的名字 (信隆 或 品誼)：");
     if (currentUser) currentUser = currentUser.trim();
     if (!currentUser) currentUser = ""; 
-    if (currentUser && !pinMapping[currentUser]) {
-      alert("姓名輸入不正確，本系統僅限定 信隆 或 品誼 登入。");
-    }
+    if (currentUser && !pinMapping[currentUser]) alert("姓名輸入不正確，本系統僅限定 信隆 或 品誼 登入。");
   }
 
-  // 2. 如果網址帶入新帳號，且跟本地紀錄不同，強制清除驗證狀態重驗
   if (paramUser && paramUser !== storedUser) {
     isVerified = false;
     localStorage.removeItem('note_user_verified');
   }
 
-  // 3. 簡易四位數密碼防呆驗證（僅限第一次登入）
   while (!isVerified) {
     let pin = prompt(`【第一次登入驗證】\n請輸入【${currentUser}】的 4 位數簡易密碼：`);
     if (pin === pinMapping[currentUser]) {
       isVerified = true;
       localStorage.setItem('note_current_user', currentUser);
       localStorage.setItem('note_user_verified', 'true');
-      alert("驗證成功，系統已記住此裝置，往後登入免輸入密碼！");
     } else if (pin === null) {
-      // 點取消防呆，強製重新整理防止跳過
       window.location.reload();
       break;
     } else {
@@ -196,24 +176,21 @@
     }
   }
 
-  // 4. 定位裝置儲存
   localStorage.setItem('note_current_user', currentUser);
   document.getElementById('userBadge').innerText = `使用者: ${currentUser}`;
 
-  // 【手動切換帳號邏輯修正】
   window.switchUserPrompt = function() {
     let newUser = prompt("請輸入您要切換的使用者名稱 (信隆 或 品誼)：");
     if(newUser) newUser = newUser.trim();
     if (newUser && pinMapping[newUser]) {
       localStorage.setItem('note_current_user', newUser);
-      localStorage.removeItem('note_user_verified'); // 拔掉認證狀態，切換新用戶必須重新輸入密碼
+      localStorage.removeItem('note_user_verified'); 
       window.location.href = window.location.origin + window.location.pathname + "?u=" + newUser; 
     } else if (newUser) {
       alert("查無此使用者，請輸入正確的名字。");
     }
   }
 
-  // 全域變數掛載
   window.tasks = [];
   window.currentTab = 'todo';
   window.currentActionType = 'todo';
@@ -222,20 +199,17 @@
   window.taskToDeleteForever = null;
   window.isEmptyingAll = false;
 
-  // 初始化小時
   const hourInput = document.getElementById('hourInput');
   for (let i = 0; i < 24; i++) {
     const val = String(i).padStart(2, '0');
     hourInput.innerHTML += `<option value="${val}">${val}</option>`;
   }
 
-  // 雲端資料即時監聽與分流過濾
   const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
   onSnapshot(q, (snapshot) => {
     window.tasks = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      // 分流判定：只看自己的紀錄，歷史無 userId 的資料兩邊共享相容
       if (data.userId === currentUser || !data.userId) {
         window.tasks.push({ id: doc.id, ...data });
       }
@@ -245,7 +219,6 @@
     renderTasks();
   });
 
-  // 核心功能邏輯
   window.switchTab = function(tab) {
     window.currentTab = tab;
     ['todo', 'note', 'favorite', 'trash'].forEach(t => {
@@ -271,17 +244,13 @@
       const task = window.tasks.find(t => t.id === id);
       setType(task.type);
       document.getElementById('taskInput').value = task.title;
-      if(task.images) {
-        window.tempImages = task.images.map(url => ({ file: null, url: url }));
-      }
+      if(task.images) window.tempImages = task.images.map(url => ({ file: null, url: url }));
       if (task.deadline) {
         const d = new Date(task.deadline);
         document.getElementById('dateInput').value = d.toLocaleDateString('en-CA');
         document.getElementById('hourInput').value = String(d.getHours()).padStart(2, '0');
         document.getElementById('minuteInput').value = String(d.getMinutes()).padStart(2, '0');
-      } else {
-        document.getElementById('dateInput').value = '';
-      }
+      } else document.getElementById('dateInput').value = '';
     } else {
       setType(window.currentTab === 'trash' || window.currentTab === 'favorite' ? 'todo' : window.currentTab);
       document.getElementById('taskInput').value = '';
@@ -311,53 +280,57 @@
     saveBtn.innerText = "上傳中...";
     saveBtn.disabled = true;
 
-    const finalImageUrls = [];
-    for (let img of window.tempImages) {
-      if (img.file) {
-        const fileRef = ref(storage, `images/${Date.now()}_${img.file.name}`);
-        const uploadResult = await uploadBytes(fileRef, img.file);
-        const downloadUrl = await getDownloadURL(uploadResult.ref);
-        finalImageUrls.push(downloadUrl);
-      } else {
-        finalImageUrls.push(img.url);
+    try {
+      const finalImageUrls = [];
+      for (let img of window.tempImages) {
+        if (img.file) {
+          const fileRef = ref(storage, `images/${Date.now()}_${img.file.name}`);
+          const uploadResult = await uploadBytes(fileRef, img.file);
+          const downloadUrl = await getDownloadURL(uploadResult.ref);
+          finalImageUrls.push(downloadUrl);
+        } else {
+          finalImageUrls.push(img.url);
+        }
       }
-    }
 
-    let deadline = null;
-    if (window.currentActionType === 'todo') {
-      const dateVal = document.getElementById('dateInput').value;
-      const hourVal = document.getElementById('hourInput').value;
-      const minuteVal = document.getElementById('minuteInput').value;
-      if (dateVal) deadline = `${dateVal}T${hourVal}:${minuteVal}:00`;
-    }
+      let deadline = null;
+      if (window.currentActionType === 'todo') {
+        const dateVal = document.getElementById('dateInput').value;
+        const hourVal = document.getElementById('hourInput').value;
+        const minuteVal = document.getElementById('minuteInput').value;
+        if (dateVal) deadline = `${dateVal}T${hourVal}:${minuteVal}:00`;
+      }
 
-    const payload = { 
-      title, 
-      images: finalImageUrls, 
-      type: window.currentActionType, 
-      deadline: deadline, 
-      userId: currentUser, // 資料蓋上目前使用者印章
-      updatedAt: new Date().toISOString() 
-    };
+      const payload = { 
+        title, 
+        images: finalImageUrls, 
+        type: window.currentActionType, 
+        deadline: deadline, 
+        userId: currentUser, 
+        updatedAt: new Date().toISOString() 
+      };
 
-    if (window.editingTaskId) {
-      await updateDoc(doc(db, "tasks", window.editingTaskId), payload);
-    } else {
-      payload.createdAt = new Date().toISOString();
-      payload.isCompleted = false;
-      payload.isDeleted = false;
-      payload.isFavorite = false;
-      await addDoc(collection(db, "tasks"), payload);
+      if (window.editingTaskId) {
+        await updateDoc(doc(db, "tasks", window.editingTaskId), payload);
+      } else {
+        payload.createdAt = new Date().toISOString();
+        payload.isCompleted = false;
+        payload.isDeleted = false;
+        payload.isFavorite = false;
+        await addDoc(collection(db, "tasks"), payload);
+      }
+      saveBtn.innerText = "新增";
+      saveBtn.disabled = false;
+      closeModal();
+    } catch (error) {
+      console.error(error);
+      alert("上傳失敗，請檢查 Firebase Storage 權限是否已開啟！\n錯誤訊息：" + error.message);
+      saveBtn.innerText = "新增";
+      saveBtn.disabled = false;
     }
-    saveBtn.innerText = "新增";
-    saveBtn.disabled = false;
-    closeModal();
   }
 
-  window.toggleComplete = async function(id) {
-    const t = window.tasks.find(x => x.id === id);
-    if(t) await updateDoc(doc(db, "tasks", id), { isCompleted: !t.isCompleted, completedAt: !t.isCompleted ? Date.now() : null });
-  }
+  window.toggleComplete = async function(id) { const t = window.tasks.find(x => x.id === id); if(t) await updateDoc(doc(db, "tasks", id), { isCompleted: !t.isCompleted, completedAt: !t.isCompleted ? Date.now() : null }); }
   window.toggleDelete = async function(id, isDel) { await updateDoc(doc(db, "tasks", id), { isDeleted: isDel }); }
   window.toggleFavorite = async function(id) { const t = window.tasks.find(x => x.id === id); if(t) await updateDoc(doc(db, "tasks", id), { isFavorite: !t.isFavorite }); }
   window.confirmPermanentDelete = function(id) { window.taskToDeleteForever = id; window.isEmptyingAll = false; document.getElementById('confirmModalTitle').innerText = '確定要徹底刪除？'; document.getElementById('confirmModal').classList.remove('hidden'); }
@@ -374,20 +347,7 @@
     closeConfirmModal();
   }
 
-  function format24H(dateString) {
-    if(!dateString) return '';
-    const d = new Date(dateString);
-    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-
   function renderTasks() {
-    const now = Date.now();
-    window.tasks.forEach(async (t) => {
-      if (t.isCompleted && t.completedAt && (now - t.completedAt > 24 * 60 * 60 * 1000) && !t.isDeleted) {
-        await updateDoc(doc(db, "tasks", t.id), { isDeleted: true });
-      }
-    });
-
     const list = document.getElementById('taskList');
     list.innerHTML = '';
     
@@ -413,8 +373,9 @@
 
     filteredTasks.forEach(task => {
       let timeStatus = { border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', color: 'text-[#8D6E63]', label: '' };
-      let deadlineStr = task.type === 'todo' ? (task.deadline ? format24H(task.deadline) : '不指定時間') : format24H(task.createdAt);
+      let deadlineStr = '';
       if (task.type === 'todo') {
+        deadlineStr = task.deadline ? `${new Date(task.deadline).getFullYear()}/${String(new Date(task.deadline).getMonth() + 1).padStart(2, '0')}/${String(new Date(task.deadline).getDate()).padStart(2, '0')} ${String(new Date(task.deadline).getHours()).padStart(2, '0')}:${String(new Date(task.deadline).getMinutes()).padStart(2, '0')}` : '不指定時間';
         const target = new Date(task.deadline);
         const today = new Date();
         const diffDays = (new Date(target.getFullYear(), target.getMonth(), target.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / (1000 * 60 * 60 * 24);
@@ -422,6 +383,8 @@
         else if (diffDays <= 3) timeStatus = { state: '3days', color: 'text-[#FFB74D]', border: 'border-amber-200', bg: 'bg-[#FFF8E1]/95', label: '3天內' };
         else if (diffDays <= 7) timeStatus = { state: '7days', color: 'text-[#90CAF9]', border: 'border-sky-200', bg: 'bg-[#E3F2FD]/95', label: '1週內' };
         else timeStatus = { state: 'normal', color: 'text-[#8D6E63]', border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', label: '一般' };
+      } else {
+        deadlineStr = task.createdAt ? `${new Date(task.createdAt).getFullYear()}/${String(new Date(task.createdAt).getMonth() + 1).padStart(2, '0')}/${String(new Date(task.createdAt).getDate()).padStart(2, '0')} ${String(new Date(task.createdAt).getHours()).padStart(2, '0')}:${String(new Date(task.createdAt).getMinutes()).padStart(2, '0')}` : '';
       }
       if (task.isCompleted) timeStatus = { border: 'border-transparent', bg: 'bg-[#FDF5E6]/95', color: 'text-[#8D6E63]', label: '' };
 
